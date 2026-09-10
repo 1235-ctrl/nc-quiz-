@@ -420,49 +420,57 @@ function renderQuestionForm() {
 }
 
 function saveQ() {
-  const type = $("#f_type").value;
-  const content = $("#f_content").value.trim();
-  const std = $("#f_std").value.trim();
-  if (!content) return alert("题目内容不能为空");
-  if (!std) return alert("标准答案不能为空");
-  const num = $("#f_num").value.trim();
-  const optsRaw = $("#f_options").value.split("\n").map(s => s.trim()).filter(Boolean);
-  const accRaw = $("#f_acc").value.split("\n").map(s => s.trim()).filter(Boolean);
+  try {
+    const type = $("#f_type").value;
+    const content = $("#f_content").value.trim();
+    const std = $("#f_std").value.trim();
+    if (!content) { alert("题目内容不能为空"); return; }
+    if (!std) { alert("标准答案不能为空"); return; }
+    const num = $("#f_num").value.trim();
+    const optsRaw = ($("#f_options")?.value || "").split("\n").map(s => s.trim()).filter(Boolean);
+    const accRaw = ($("#f_acc")?.value || "").split("\n").map(s => s.trim()).filter(Boolean);
+    const exp = ($("#f_exp")?.value || "").trim();
 
-  if (STATE.questionId) {
-    const qs = getCustomQuestions();
-    const idx = qs.findIndex(q => q.question_id === STATE.questionId);
-    if (idx >= 0) {
-      qs[idx] = {
-        ...qs[idx],
-        type, content, standard_answer: std,
+    if (STATE.questionId) {
+      const qs = getCustomQuestions();
+      const idx = qs.findIndex(q => q.question_id === STATE.questionId);
+      if (idx >= 0) {
+        qs[idx] = {
+          ...qs[idx],
+          type, content, standard_answer: std,
+          accepted_answers: accRaw,
+          explanation: exp,
+          original_number: num ? parseInt(num) : null,
+          options: optsRaw,
+          needs_review: false,
+        };
+        saveCustomQuestions(qs);
+      }
+    } else {
+      const qs = getCustomQuestions();
+      const maxId = qs.length ? Math.max(...qs.map(q => q.question_id)) : 10000;
+      qs.push({
+        question_id: maxId + 1,
+        bank_id: STATE.bankId,
+        type, content,
+        standard_answer: std,
         accepted_answers: accRaw,
-        explanation: $("#f_exp").value,
+        explanation: exp,
         original_number: num ? parseInt(num) : null,
         options: optsRaw,
-      };
+        original_image: "",
+        source_image_id: "",
+        source_page: "",
+        tags: [],
+        needs_review: false,
+        created_at: new Date().toISOString(),
+      });
       saveCustomQuestions(qs);
     }
     go("bank", { bankId: STATE.bankId });
-  } else {
-    const qs = getCustomQuestions();
-    const maxId = qs.length ? Math.max(...qs.map(q => q.question_id)) : 10000;
-    qs.push({
-      question_id: maxId + 1,
-      bank_id: STATE.bankId,
-      type, content,
-      standard_answer: std,
-      accepted_answers: accRaw,
-      explanation: $("#f_exp").value,
-      original_number: num ? parseInt(num) : null,
-      options: optsRaw,
-      original_image: "",
-      source_page: "",
-      tags: [],
-      created_at: new Date().toISOString(),
-    });
-    saveCustomQuestions(qs);
-    go("bank", { bankId: STATE.bankId });
+  } catch (e) {
+    console.error("saveQ error:", e);
+    alert("保存失败：" + e.message);
   }
 }
 
@@ -924,19 +932,23 @@ async function startOcr() {
 function showOcrResult(text, imgUrl) {
   const result = $("#ocr_result");
   const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-  const questions = splitQuestions(lines);
+  const imageId = hashString(imgUrl.slice(0, 5000));
+  const questions = splitQuestions(lines, imageId);
   window._ocrQuestions = questions;
   window._ocrImgUrl = imgUrl;
+  window._ocrImageId = imageId;
 
   let html = `<div class="card">
     <h3>识别结果（共 ${questions.length} 题）</h3>
-    <p style="font-size:13px;color:#888;margin:6px 0;">请检查并修改每道题，确认后入库。</p>
+    <p style="font-size:13px;color:#9ca3af;margin:6px 0;">请检查并修改每道题，确认后入库。带 ⚠️ 的题目需重点核对。</p>
+    <img class="thumb" src="${imgUrl}" style="max-height:250px;">
   </div>`;
 
   questions.forEach((q, i) => {
+    const warn = q.needs_review ? `<span style="color:#fbbf24;margin-left:6px;">⚠️ 待审核</span>` : "";
     html += `<div class="card" id="qcard_${i}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <b>第 ${i + 1} 题</b>
+        <b>第 ${q.original_number || i + 1} 题${warn}</b>
         <button class="btn small danger" onclick="removeOcrQ(${i})">删除</button>
       </div>
       <label>题型</label>
@@ -963,40 +975,76 @@ function showOcrResult(text, imgUrl) {
   $("#ocr_btn").disabled = false;
 }
 
-function splitQuestions(lines) {
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return "img" + Math.abs(hash).toString(36);
+}
+
+function splitQuestions(lines, imageId) {
   const questions = [];
   let current = null;
   const qNumRegex = /^(\d+)[\.、\)）]\s*(.*)/;
+  const ansRegex = /^答案[:：]\s*(.+)/;
+  const expRegex = /^解析[:：]\s*(.+)/;
+  const judgeAnsSet = new Set(["正确", "错误", "对", "错", "是", "否", "√", "×", "T", "F", "true", "false", "TRUE", "FALSE"]);
 
   for (let line of lines) {
     const m = line.match(qNumRegex);
     if (m) {
       if (current) questions.push(current);
+      const num = parseInt(m[1]);
       const rest = m[2];
-      let type = "judge";
-      let std = "";
-      const content = rest;
-      const fillMark = rest.match(/_{2,}|____|（\s*）|\(\s*\)/);
-      if (fillMark) type = "fill";
-      const ansMatch = rest.match(/[（(]([^)）]+)[)）]/);
-      if (ansMatch && ansMatch[1].trim()) {
-        const a = ansMatch[1].trim();
-        if (["正确", "错误", "对", "错", "是", "否", "√", "×", "T", "F", "true", "false"].includes(a)) {
-          std = a;
-        }
-      }
-      current = { type, content, standard_answer: std, explanation: "" };
+      current = {
+        original_number: num,
+        type: "judge",
+        content: rest,
+        standard_answer: "",
+        explanation: "",
+        accepted_answers: [],
+        options: [],
+        source_image_id: imageId || "",
+        needs_review: false,
+      };
     } else if (current) {
-      current.content += "\n" + line;
-      if (line.match(/^解析[:：]/)) {
-        current.explanation = line.replace(/^解析[:：]\s*/, "");
-      }
-      if (line.match(/^答案[:：]/)) {
-        current.standard_answer = line.replace(/^答案[:：]\s*/, "").trim();
+      const am = line.match(ansRegex);
+      const em = line.match(expRegex);
+      if (am) {
+        const ans = am[1].trim();
+        current.standard_answer = ans;
+        if (judgeAnsSet.has(ans)) {
+          current.type = "judge";
+          if (ans === "对" || ans === "是" || ans === "√" || ans === "T" || ans === "true" || ans === "TRUE") {
+            current.standard_answer = "正确";
+          } else if (ans === "错" || ans === "否" || ans === "×" || ans === "F" || ans === "false" || ans === "FALSE") {
+            current.standard_answer = "错误";
+          }
+        } else {
+          current.needs_review = true;
+        }
+      } else if (em) {
+        current.explanation = em[1].trim();
+      } else {
+        current.content += "\n" + line;
       }
     }
   }
   if (current) questions.push(current);
+
+  for (const q of questions) {
+    q.content = q.content.trim();
+    if (q.type === "judge" && !q.standard_answer) {
+      q.needs_review = true;
+    }
+    const fillMark = q.content.match(/_{2,}|____/);
+    if (fillMark && q.type === "judge" && !q.standard_answer) {
+      q.type = "fill";
+    }
+  }
   return questions;
 }
 
@@ -1010,15 +1058,29 @@ function saveOcrQuestions() {
   const bankId = parseInt($("#ocr_bank").value);
   const qs = window._ocrQuestions;
   const custom = getCustomQuestions();
+  const imageId = window._ocrImageId || "";
   let maxId = custom.length ? Math.max(...custom.map(q => q.question_id)) : 10000;
   let count = 0;
+  let skipped = 0;
+
   for (let i = 0; i < qs.length; i++) {
     if (!qs[i]) continue;
     const type = document.getElementById("qtype_" + i).value;
     const content = document.getElementById("qcontent_" + i).value.trim();
     const std = document.getElementById("qstd_" + i).value.trim();
     const exp = document.getElementById("qexp_" + i).value.trim();
+    const origNum = qs[i].original_number;
+
     if (!content) continue;
+
+    const dup = custom.find(q =>
+      q.source_image_id === imageId &&
+      imageId !== "" &&
+      q.original_number === origNum &&
+      origNum !== null && origNum !== undefined
+    );
+    if (dup) { skipped++; continue; }
+
     maxId++;
     custom.push({
       question_id: maxId,
@@ -1028,16 +1090,22 @@ function saveOcrQuestions() {
       standard_answer: std || "（待补充）",
       accepted_answers: [],
       explanation: exp,
+      original_number: origNum,
       original_image: window._ocrImgUrl || "",
+      source_image_id: imageId,
       source_page: "",
       tags: [],
       options: [],
+      needs_review: !std,
       created_at: new Date().toISOString(),
     });
     count++;
   }
   saveCustomQuestions(custom);
-  alert(`成功入库 ${count} 道题！`);
+  const msg = skipped > 0
+    ? `成功入库 ${count} 道题，跳过 ${skipped} 道重复题。`
+    : `成功入库 ${count} 道题！`;
+  alert(msg);
   go("bank", { bankId });
 }
 
