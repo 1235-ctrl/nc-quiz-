@@ -863,8 +863,13 @@ async function renderOcr() {
     <div class="card">
       <label>选择题库</label>
       <select id="ocr_bank">${bankOpts}</select>
-      <label>上传题目图片（可拍照）</label>
-      <input type="file" id="ocr_file" accept="image/*" capture="environment">
+      <label>题目图片</label>
+      <div class="grid" style="grid-template-columns:1fr 1fr;">
+        <button class="btn" onclick="document.getElementById('ocr_camera').click()">📷 拍照</button>
+        <button class="btn" onclick="document.getElementById('ocr_album').click()">🖼️ 从相册选择</button>
+      </div>
+      <input type="file" id="ocr_camera" accept="image/*" capture="environment" style="display:none;">
+      <input type="file" id="ocr_album" accept="image/*" style="display:none;">
       <div id="ocr_preview" style="margin-top:10px;"></div>
       <div style="margin-top:12px;">
         <button class="btn block" id="ocr_btn" onclick="startOcr()" disabled>开始识别</button>
@@ -877,8 +882,7 @@ async function renderOcr() {
     </div>
     <div id="ocr_result"></div>
   `;
-  $("#ocr_file").onchange = (e) => {
-    const f = e.target.files[0];
+  const handleFile = (f) => {
     if (!f) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -888,6 +892,8 @@ async function renderOcr() {
     };
     reader.readAsDataURL(f);
   };
+  $("#ocr_camera").onchange = (e) => handleFile(e.target.files[0]);
+  $("#ocr_album").onchange = (e) => handleFile(e.target.files[0]);
 }
 
 async function startOcr() {
