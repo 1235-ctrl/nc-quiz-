@@ -1,0 +1,87 @@
+{
+  "banks": [
+    {
+      "bank_id": 1,
+      "name": "数控考试题库",
+      "description": "数控考试专用刷题题库",
+      "created_at": "2026-09-10 00:00:00"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": 1,
+      "bank_id": 1,
+      "original_number": 1,
+      "type": "judge",
+      "content": "数控机床可以实现自动化加工。（ ）",
+      "options": [],
+      "standard_answer": "正确",
+      "accepted_answers": [],
+      "explanation": "数控机床通过程序控制，可实现自动化加工。",
+      "original_image": "",
+      "source_page": "",
+      "tags": [],
+      "created_at": "2026-09-10 00:00:00"
+    },
+    {
+      "question_id": 2,
+      "bank_id": 1,
+      "original_number": 2,
+      "type": "fill",
+      "content": "数控系统的英文简称是______。",
+      "options": [],
+      "standard_answer": "CNC",
+      "accepted_answers": ["CNC", "CNC系统", "数控系统"],
+      "explanation": "CNC 是 Computer Numerical Control 的缩写。",
+      "original_image": "",
+      "source_page": "",
+      "tags": [],
+      "created_at": "2026-09-10 00:00:00"
+    },
+    {
+      "question_id": 3,
+      "bank_id": 1,
+      "original_number": 3,
+      "type": "single",
+      "content": "G01 指令表示？",
+      "options": ["A. 快速定位", "B. 直线插补", "C. 圆弧插补", "D. 暂停"],
+      "standard_answer": "B",
+      "accepted_answers": [],
+      "explanation": "G01 是直线插补指令，用于直线切削加工。",
+      "original_image": "",
+      "source_page": "",
+      "tags": [],
+      "created_at": "2026-09-10 00:00:00"
+    },
+    {
+      "question_id": 4,
+      "bank_id": 1,
+      "original_number": 4,
+      "type": "judge",
+      "content": "G00 是快速定位指令，不用于切削加工。（ ）",
+      "options": [],
+      "standard_answer": "正确",
+      "accepted_answers": [],
+      "explanation": "G00 为快速点定位，移动速度快，不能用于切削。",
+      "original_image": "",
+      "source_page": "",
+      "tags": [],
+      "created_at": "2026-09-10 00:00:00"
+    },
+    {
+      "question_id": 5,
+      "bank_id": 1,
+      "original_number": 5,
+      "type": "fill",
+      "content": "数控机床中，G代码是______指令，M代码是辅助功能指令。",
+      "options": [],
+      "standard_answer": "准备功能",
+      "accepted_answers": ["准备功能", "准备", "准备功能指令"],
+      "explanation": "G代码为准备功能指令，M代码为辅助功能指令。",
+      "original_image": "",
+      "source_page": "",
+      "tags": [],
+      "created_at": "2026-09-10 00:00:00"
+    }
+  ]
+}
